@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'zenith-v1';
+const CACHE_NAME = 'zenith-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -22,14 +22,21 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Logic to handle background notification clicks
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  event.waitUntil(
-    clients.openWindow('/')
-  );
-});
+  const action = event.action;
+  const notification = event.notification;
+  
+  notification.close();
 
-// Logic to handle background sync or periodic triggers for notifications would go here.
-// Note: In standard browsers, truly scheduled local notifications often rely on 
-// the app being open or server-side pushes. This SW acts as a base for offline support.
+  if (action === 'snooze') {
+    // Logic for snooze would ideally happen in the app. 
+    // We open the app to handle state updates.
+    event.waitUntil(
+      clients.openWindow('/?action=snooze&id=' + notification.data.id)
+    );
+  } else {
+    event.waitUntil(
+      clients.openWindow('/')
+    );
+  }
+});

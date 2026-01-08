@@ -13,6 +13,7 @@ export interface Task {
   text: string;
   completed: boolean;
   time?: string;
+  alarmEnabled?: boolean;
 }
 
 export interface Goal {
@@ -29,6 +30,7 @@ export interface Exercise {
   duration: number; // in minutes
   completed: boolean;
   reminderTime?: string;
+  alarmEnabled?: boolean;
 }
 
 export interface Note {
@@ -47,4 +49,5 @@ export interface AppState {
     totalMinutes: number;
     lastSession: string;
   };
+  snoozedItems: Record<string, string>; // ID -> Time string (HH:mm)
 }

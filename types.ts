@@ -50,4 +50,9 @@ export interface AppState {
     lastSession: string;
   };
   snoozedItems: Record<string, string>; // ID -> Time string (HH:mm)
+  activeExerciseTimer?: {
+    id: string;
+    secondsLeft: number;
+    totalSeconds: number;
+  };
 }

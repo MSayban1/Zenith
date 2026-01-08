@@ -17,8 +17,7 @@ const Icons = {
   Notes: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
 };
 
-const STORAGE_KEY = 'zenith_discipline_state_v3';
-// High-energy alarm sound
+const STORAGE_KEY = 'zenith_discipline_state_v4';
 const ALARM_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 const defaultState: AppState = {
@@ -41,16 +40,14 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : defaultState;
   });
-  const [ringingItem, setRingingItem] = useState<{ id: string, title: string, type: 'routine' | 'exercise' } | null>(null);
+  const [ringingItem, setRingingItem] = useState<{ id: string, title: string, type: 'routine' | 'exercise' | 'timer' } | null>(null);
   
   const alarmAudio = useRef<HTMLAudioElement | null>(null);
 
-  // Persistence
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // Handle Alarm Audio Loop
   useEffect(() => {
     if (ringingItem) {
       if (!alarmAudio.current) {
@@ -88,13 +85,38 @@ const App: React.FC = () => {
     }
   };
 
-  // Central Clock logic for Alarms
+  // Main Background Clock & Timer Logic
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       
-      // Check Routine
+      // Update running exercise timer
+      if (state.activeExerciseTimer) {
+        setState(prev => {
+          if (!prev.activeExerciseTimer) return prev;
+          const nextSeconds = prev.activeExerciseTimer.secondsLeft - 1;
+          
+          if (nextSeconds <= 0) {
+            const ex = prev.exercises.find(e => e.id === prev.activeExerciseTimer?.id);
+            if (ex && !ringingItem) {
+              setRingingItem({ id: ex.id, title: `Timer Finished: ${ex.name}`, type: 'timer' });
+              sendAlarmNotification(ex.id, 'Exercise Complete!', ex.name);
+            }
+            return { ...prev, activeExerciseTimer: undefined };
+          }
+          
+          return {
+            ...prev,
+            activeExerciseTimer: {
+              ...prev.activeExerciseTimer,
+              secondsLeft: nextSeconds
+            }
+          };
+        });
+      }
+
+      // Check Routine & Exercise Alarms (Reminder Times)
       state.routine.forEach(task => {
         if (!task.completed && task.alarmEnabled && (task.time === timeStr || state.snoozedItems[task.id] === timeStr)) {
           if (!ringingItem || ringingItem.id !== task.id) {
@@ -104,16 +126,15 @@ const App: React.FC = () => {
         }
       });
 
-      // Check Exercises
       state.exercises.forEach(ex => {
         if (!ex.completed && ex.alarmEnabled && (ex.reminderTime === timeStr || state.snoozedItems[ex.id] === timeStr)) {
-          if (!ringingItem || ringingItem.id !== ex.id) {
+          if (!ringingItem || (ringingItem.id !== ex.id && ringingItem.type !== 'timer')) {
             setRingingItem({ id: ex.id, title: ex.name, type: 'exercise' });
             sendAlarmNotification(ex.id, 'Zenith Fitness', `Time for ${ex.name}`);
           }
         }
       });
-    }, 10000); // Check every 10 seconds
+    }, 1000); // Check every second for timer accuracy
 
     return () => clearInterval(interval);
   }, [state, ringingItem]);
@@ -167,7 +188,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden">
-      {/* Alarm Overlay */}
       {ringingItem && (
         <div className="fixed inset-0 z-[100] bg-indigo-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in duration-300">
           <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-8 animate-bounce">
@@ -183,17 +203,18 @@ const App: React.FC = () => {
             >
               DISMISS
             </button>
-            <button 
-              onClick={handleSnooze}
-              className="w-full bg-indigo-500/30 text-white border border-white/20 py-5 rounded-3xl font-black text-xl active:scale-95 transition-all"
-            >
-              SNOOZE (5M)
-            </button>
+            {ringingItem.type !== 'timer' && (
+              <button 
+                onClick={handleSnooze}
+                className="w-full bg-indigo-500/30 text-white border border-white/20 py-5 rounded-3xl font-black text-xl active:scale-95 transition-all"
+              >
+                SNOOZE (5M)
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Header */}
       <div className="h-safe-top bg-white/80 backdrop-blur-md sticky top-0 z-50 px-4 py-3 flex items-center justify-between border-b border-slate-100">
         <h1 className="text-xl font-black text-indigo-600 tracking-tighter italic">ZENITH</h1>
         <div className="flex items-center gap-2">
@@ -206,7 +227,6 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
 
-      {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-200 safe-area-bottom flex items-center justify-around z-50 shadow-[0_-4px_25px_-10px_rgba(0,0,0,0.1)]">
         <NavButton tab={AppTab.DASHBOARD} icon={Icons.Dashboard} label="Home" />
         <NavButton tab={AppTab.ROUTINE} icon={Icons.Routine} label="Routine" />
